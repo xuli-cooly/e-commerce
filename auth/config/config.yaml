@@ -1,0 +1,57 @@
+app:
+  port: 8001
+  env: development  # development | production
+
+db:
+  dsn: "root:Trading@2026#Secure@tcp(127.0.0.1:3306)/auth?charset=utf8mb4&parseTime=True&loc=Local"
+  max_open_conns: 20
+  max_idle_conns: 10
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: "Redis@2026#Secure!"
+  db: 0
+
+elasticsearch:
+  addr: "http://127.0.0.1:9200"
+  timeout_ms: 500  # ES 操作超时阈值，超过则降级
+
+rabbitmq:
+  url: "amqp://guest:guest@127.0.0.1:5672/"
+
+jwt:
+  secret: "Tr@d1ngSys#JWT$Secret2026!xK9mP"
+  expire_days: 7
+
+admin:
+  username: "admin"
+  password: "Admin@2026#Trading!"
+
+email:
+  smtp_host: "smtp.163.com"
+  smtp_port: 465
+  sender: "coolyxu@163.com"
+  auth_code: "DKSK9348B7rRSXA7"
+
+nacos:
+  enabled: false
+  addr: "127.0.0.1"
+  port: 8848
+  namespace: "public"
+  group: "DEFAULT_GROUP"
+  data_id: "trading-system.yaml"
+  service_name: "trading-system"
+  service_port: 8080
+
+tracing:
+  enabled: false
+  jaeger_endpoint: "http://127.0.0.1:4318/v1/traces"
+  service_name: "trading-system"
+
+log:
+  level: "info"
+  file_path: "./logs/app.log"   # empty string disables file output
+  max_size_mb: 100
+  max_backups: 7
+  max_age_days: 30
+  compress: true

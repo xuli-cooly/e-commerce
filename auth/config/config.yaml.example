@@ -1,0 +1,25 @@
+app:
+  port: 8080
+  env: development  # development | production
+
+db:
+  # MySQL 连接字符串
+  dsn: "root:YOUR_PASSWORD@tcp(127.0.0.1:3306)/trading?charset=utf8mb4&parseTime=True&loc=Local"
+  max_open_conns: 20
+  max_idle_conns: 10
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: "YOUR_REDIS_PASSWORD"  # 必须设置强密码
+  db: 0
+
+elasticsearch:
+  addr: "http://127.0.0.1:9200"
+  timeout_ms: 500     # ES 操作超时阈值，超过则降级到 MySQL LIKE
+
+rabbitmq:
+  url: "amqp://guest:guest@127.0.0.1:5672/"
+
+jwt:
+  secret: "CHANGE_THIS_TO_A_STRONG_RANDOM_SECRET"
+  expire_days: 7
