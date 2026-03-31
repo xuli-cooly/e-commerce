@@ -1,0 +1,164 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: trading_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Trading@2026#Secure
+      MYSQL_DATABASE: trading
+      MYSQL_CHARSET: utf8mb4
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pTrading@2026#Secure"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-Redis@2026#Secure!}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-Redis@2026#Secure!}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: trading_es
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: trading_rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── Microservices ──────────────────────────────────────────────────────────
+
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: auth_service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - APP_PORT=8001
+      - DB_DSN=root:Trading@2026#Secure@tcp(mysql:3306)/auth?charset=utf8mb4&parseTime=True&loc=Local
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-Redis@2026#Secure!}
+      - JWT_SECRET=${JWT_SECRET:-trading-secret-key}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  trading-service:
+    build:
+      context: ./services/trading
+      dockerfile: Dockerfile
+    container_name: trading_service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - APP_PORT=8002
+      - DB_DSN=root:Trading@2026#Secure@tcp(mysql:3306)/trading?charset=utf8mb4&parseTime=True&loc=Local
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-Redis@2026#Secure!}
+      - ES_ADDR=http://elasticsearch:9200
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - JWT_SECRET=${JWT_SECRET:-trading-secret-key}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  community-service:
+    build:
+      context: ./services/community
+      dockerfile: Dockerfile
+    container_name: community_service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - COMMUNITY_PORT=8003
+      - COMMUNITY_DB_DSN=root:Trading@2026#Secure@tcp(mysql:3306)/community?charset=utf8mb4&parseTime=True&loc=Local
+      - TRADING_SERVICE_URL=http://trading-service:8080
+      - JWT_SECRET=${JWT_SECRET:-trading-secret-key}
+    volumes:
+      - community_uploads:/app/static/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      trading-service:
+        condition: service_started
+
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - TRADING_SERVICE_URL=http://trading-service:8002
+      - COMMUNITY_SERVICE_URL=http://community-service:8003
+      - JWT_SECRET=${JWT_SECRET:-trading-secret-key}
+    depends_on:
+      - auth-service
+      - trading-service
+      - community-service
+
+volumes:
+  mysql_data:
+  redis_data:
+  es_data:
+  rabbitmq_data:
+  community_uploads:
